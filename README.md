@@ -2,7 +2,7 @@
 
 A feather M0 step counter with SSD1331 oled RGB display and MPU6050 gyroscope with Doraemon face.
 
-## Features
+## Features v0.1
 
   - 180mAh Lipo (display always on): 2h
   - Button to set a step desensity (level 1 to 15)

@@ -1,4 +1,10 @@
+/*
+ * git clone https://github.com/adafruit/Adafruit_ASFcore
+ * git clone https://github.com/adafruit/Adafruit_ZeroTimer.git
+ */
 #include <Arduino.h>
+#include <Adafruit_ZeroTimer.h>
+
 #include <Adafruit_GFX.h>
 #include "Adafruit_SSD1331.h"
 
@@ -19,7 +25,7 @@ int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
 long stoss;
 long firstStoss =-1;
 
-long treshold = 1;
+long treshold = 2;
 long barrier = 0;
 long steps   = 0;
 
@@ -31,6 +37,8 @@ byte tick = 0;
 byte hours   = 0;
 byte minutes = 0;
 byte seconds = 0;
+int displayOnSec = 0;
+byte pressTicks = 0;
 
 // The temperature sensor is -40 to +85 degrees Celsius.
 // It is a signed integer.
@@ -41,7 +49,7 @@ double dT;
 
 // Color definitions
 #define BLACK           0x0000
-#define GREY            0b0010000100000100
+#define GREY            0b0001000010000010
 #define GREYBLUE        0b0010000100010000
 #define LIGHTBLUE       0b0110001000011111
 #define BLUE            0x001F
@@ -53,13 +61,15 @@ double dT;
 #define AMBER           0b1111101111100111
 #define WHITE           0xFFFF
 
-byte batLength = 30;
+byte batLength = 50;
+int  SLEEPSEC = 10;
 
 #define EYE1x 47
 #define EYE1y 20
 #define EYE2x 64
 #define EYE2y 20
 
+Adafruit_ZeroTimer zt3 = Adafruit_ZeroTimer(3);
 Adafruit_SSD1331 oled = Adafruit_SSD1331(OLED_CS, OLED_DC, OLED_RESET);
 
 byte powerVal(int mv) {
@@ -132,6 +142,31 @@ void mouth() {
   
 }
 
+void Timer3Callback0(struct tc_module *const module_inst) {
+  tick++;
+  if (tick>3) {
+    seconds++;
+    if (displayOnSec >=0 ) displayOnSec++;
+    tick=0;
+  }
+  if (seconds > 59) {
+    minutes += seconds / 60;
+    seconds  = seconds % 60;
+  }
+  if (minutes > 59) {
+    hours  += minutes / 60;
+    minutes = minutes % 60;
+  }
+  if (hours > 23) {
+    hours = hours % 24;
+  }
+}
+
+int16_t absi(int16_t val) {
+  if (val<0) return -1*val;
+  else val;
+}
+
 void setup() {
   pinMode(BUTTON, INPUT_PULLUP);
   pinMode(STEPLED, OUTPUT);
@@ -143,7 +178,9 @@ void setup() {
 
   oled.begin();
   oled.fillScreen(GREY);
-  oled.drawLine(0, 47, 16-treshold, 47, MAGENTA);
+  oled.drawLine(0, 47, 18, 47, GREEN);
+  oled.drawLine(0, 47, 20-(2*treshold), 47, AMBER);
+  oled.drawPixel(20-(2*treshold), 47, WHITE);
 
   // battery
   oled.drawPixel(oled.width()-5, oled.height() - batLength, WHITE);
@@ -164,13 +201,13 @@ void setup() {
   oled.drawLine(EYE1x + (EYE2x-EYE1x)/2, EYE2y+14, EYE1x +2 + (EYE2x-EYE1x)/2, EYE2y+26, BLACK);
 
   // bart
-  oled.drawLine(EYE1x-4, EYE1y+14, EYE1x+5, EYE1y+16, BLACK);
-  oled.drawLine(EYE1x-6, EYE1y+17, EYE1x+6, EYE1y+20, BLACK);
-  oled.drawLine(EYE1x-9, EYE1y+19, EYE1x+3, EYE1y+23, BLACK);
+  oled.drawLine(EYE1x-4,  EYE1y+14, EYE1x+5, EYE1y+16, BLACK);
+  oled.drawLine(EYE1x-6,  EYE1y+17, EYE1x+6, EYE1y+20, BLACK);
+  oled.drawLine(EYE1x-11, EYE1y+19, EYE1x+3, EYE1y+23, BLACK);
 
-  oled.drawLine(EYE2x+4, EYE2y+14, EYE2x-5, EYE2y+16, BLACK);
-  oled.drawLine(EYE2x+6, EYE2y+17, EYE2x-6, EYE2y+20, BLACK);
-  oled.drawLine(EYE2x+9, EYE2y+19, EYE2x-3, EYE2y+23, BLACK);
+  oled.drawLine(EYE2x+4,  EYE2y+14, EYE2x-5, EYE2y+16, BLACK);
+  oled.drawLine(EYE2x+6,  EYE2y+17, EYE2x-6, EYE2y+20, BLACK);
+  oled.drawLine(EYE2x+11, EYE2y+19, EYE2x-3, EYE2y+23, BLACK);
 
   mouth();
 
@@ -186,29 +223,25 @@ void setup() {
 
   oled.setTextColor(WHITE, GREY);
   oled.setTextSize(1);
+  
+  /********************* Timer #3, 16 bit, two PWM outs, period = 65535 */
+  zt3.configure(TC_CLOCK_PRESCALER_DIV1024, // prescaler
+                TC_COUNTER_SIZE_16BIT,   // bit width of timer/counter
+                TC_WAVE_GENERATION_MATCH_PWM // frequency or PWM mode 
+                );
+
+  //zt3.setPeriodMatch(48000, 1, 0); // 48MHz / 1024   ->   48 = 1ms (to slow. 1s = 1.024064)
+  zt3.setPeriodMatch(11712, 1, 0); // 250ms
+  zt3.setCallback(true, TC_CALLBACK_CC_CHANNEL0, Timer3Callback0);  // this one sets pin low
+  zt3.enable(true);
 }
 
 void loop() {
-  delay(225);
+  delay(100);
   digitalWrite(STEPLED, LOW);
   
-  tick++;  
-  if (tick>3) {
-    seconds++;
-    tick=0;
-  }
-  if (seconds > 59) {
-    minutes += seconds / 60;
-    seconds  = seconds % 60;
-  }
-  if (minutes > 59) {
-    hours  += minutes / 60;
-    minutes = minutes % 60;
-  }
-  if (hours > 23) {
-    hours = hours % 24;
-  }
-  if (tick == 0) {
+  if (tick == 0  && displayOnSec >= 0) {
+    oled.setTextColor(WHITE, GREY);
     oled.setTextSize(1);
     oled.setCursor(0,0);
     if(hours<10) oled.print('0');
@@ -225,13 +258,24 @@ void loop() {
   }
   
   if (digitalRead(BUTTON) == LOW) {
-    treshold++;
-    if (treshold>16) treshold=1;
-    oled.drawLine(0, 47, 16,          47, GREY);
-    oled.drawLine(0, 47, 16-treshold, 47, MAGENTA);
+    pressTicks++;
+    displayOnSec=0;
+    batteryBar();
+    eyes();
+    nose();
+    oled.writeCommand(SSD1331_CMD_DISPLAYON);
+
+    if (pressTicks>2) {
+      pressTicks=0;
+      treshold++;
+      if (treshold>10) treshold=1;
+      oled.drawLine(0, 47, 18, 47, GREEN);
+      oled.drawLine(0, 47, 20-(2*treshold), 47, AMBER);
+      oled.drawPixel(20-(2*treshold), 47, WHITE);
+    }
   }
 
-  if (seconds%4 == 0 && tick==0) {
+  if (seconds%4 == 0 && tick==0 && displayOnSec>=0) {
     batteryBar();
     eyes();
     delay(100);
@@ -252,16 +296,12 @@ void loop() {
   AcZ=Wire.read()<<8|Wire.read();  // 0x3F (ACCEL_ZOUT_H) & 0x40 (ACCEL_ZOUT_L)
   //dT = ( (double) Tmp + 12412.0) / 340.0;
   
-  stoss = ((long)AcX)*((long)AcX) + ((long)AcY)*((long)AcY) + ((long)AcZ)*((long)AcZ);
-  mouth();
+  stoss = absi(AcX) + absi(AcY) + absi(AcZ);
   
-  barrier = treshold*40000000l + 260000000l;
+  barrier = treshold*5000l + 9000l;
   if (stoss > barrier) {
     steps++;
-    oled.setTextSize(2);
-    oled.setCursor(0,50);
-    oled.print(steps);
-    digitalWrite(STEPLED, HIGH);
+    digitalWrite(STEPLED, HIGH);    
   }
     
   if (GyX > 17200) GyX = 17200;
@@ -271,17 +311,32 @@ void loop() {
 
   deltax = map(GyX, -17200, 17200, -6, 6);
   deltay = map(GyY, -17200, 17200, 6, -6);
-
-  oled.fillCircle(EYE1x+lastx, EYE1y+lasty, 2, WHITE);
-  oled.fillCircle(EYE2x+lastx, EYE2y+lasty, 2, WHITE);
   
-  oled.fillCircle(EYE1x+deltax, EYE1y+deltay, 2, BLACK);
-  oled.drawPixel(EYE1x+deltax-1, EYE1y+deltay-1, WHITE);
-
-  oled.fillCircle(EYE2x+deltax, EYE2y+deltay, 2, BLACK);
-  oled.drawPixel(EYE2x+deltax-1, EYE2y+deltay-1, WHITE);
+  if (displayOnSec >= 0) {
+    mouth();
+    
+    oled.setTextSize(2);
+    oled.setCursor(0,50);
+    oled.setTextColor(AMBER, GREY);
+    oled.print(steps);
+    
+    oled.fillCircle(EYE1x+lastx, EYE1y+lasty, 2, WHITE);
+    oled.fillCircle(EYE2x+lastx, EYE2y+lasty, 2, WHITE);
+    
+    oled.fillCircle(EYE1x+deltax, EYE1y+deltay, 2, BLACK);
+    oled.drawPixel(EYE1x+deltax-1, EYE1y+deltay-1, WHITE);
   
+    oled.fillCircle(EYE2x+deltax, EYE2y+deltay, 2, BLACK);
+    oled.drawPixel(EYE2x+deltax-1, EYE2y+deltay-1, WHITE);  
+  }
+
+  if (displayOnSec > SLEEPSEC && displayOnSec >= 0) {
+    oled.writeCommand(SSD1331_CMD_DISPLAYOFF);
+    displayOnSec = -1;
+  }
+      
   lastx = deltax;
-  lasty = deltay;  
+  lasty = deltay;
+
 }
 
