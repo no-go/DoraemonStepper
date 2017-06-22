@@ -1,13 +1,23 @@
 # DoraemonStepper
 
 A feather M0 step counter with SSD1331 oled RGB display and MPU6050 gyroscope with Doraemon face.
+Code is coming from hell and very terrible. The Feel and Flair of the
+user experience is a bit buggy but okay :-D
 
-## Features v0.3
+## New features v0.4
+
+ - Display sleeps after 15sec
+ - Display switchs on if there is an incoming message
+ - UART message is shown as a scrolling text like a terminal
+ - Send 12:34:56 or x12:34:56 via bluetooth to set the Time/clock
+ - small threshold button press fix
+
+## New features v0.3
 
  - Send 12:34:56 via bluetooth to set the Time/clock
  - lipo runtime unclear, because bluetooth on my faether is now on
 
-## Features v0.2
+## New features v0.2
 
   - Button (short): display on for 10sec
   - 180mAh Lipo: 7.5 h
@@ -15,7 +25,7 @@ A feather M0 step counter with SSD1331 oled RGB display and MPU6050 gyroscope wi
   - a clock via Timer (precise: runns 1min behind after 7.5h)
   - desensity bar better readable
 
-## Features v0.1
+## features v0.1
 
   - 180mAh Lipo (display always on): 2h
   - Button to set a step desensity (level 1 to 15)
