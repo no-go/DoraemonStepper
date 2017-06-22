@@ -2,6 +2,19 @@
 
 A feather M0 step counter with SSD1331 oled RGB display and MPU6050 gyroscope with Doraemon face.
 
+## Features v0.3
+
+ - Send 12:34:56 via bluetooth to set the Time/clock
+ - lipo runtime unclear, because bluetooth on my faether is now on
+
+## Features v0.2
+
+  - Button (short): display on for 10sec
+  - 180mAh Lipo: 7.5 h
+  - Button to set a step desensity (level 1 to 10) works now a bit better
+  - a clock via Timer (precise: runns 1min behind after 7.5h)
+  - desensity bar better readable
+
 ## Features v0.1
 
   - 180mAh Lipo (display always on): 2h

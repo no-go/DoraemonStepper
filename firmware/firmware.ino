@@ -8,6 +8,10 @@
 #include <Adafruit_GFX.h>
 #include "Adafruit_SSD1331.h"
 
+#include "Adafruit_BLE.h"
+#include "Adafruit_BluefruitLE_SPI.h"
+#include "BluefruitConfig.h"
+
 #include <SPI.h>
 #define OLED_DC      5
 #define OLED_CS     12
@@ -21,6 +25,7 @@
 #include <Wire.h>
 const int MPU=0x68;  // I2C address of the MPU-6050
 int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
+byte vccVal = 3400;
 
 long stoss;
 long firstStoss =-1;
@@ -39,6 +44,9 @@ byte minutes = 0;
 byte seconds = 0;
 int displayOnSec = 0;
 byte pressTicks = 0;
+
+char serialCache[11] = "00:00:00  ";
+int cpos = 0;
 
 // The temperature sensor is -40 to +85 degrees Celsius.
 // It is a signed integer.
@@ -71,6 +79,7 @@ int  SLEEPSEC = 10;
 
 Adafruit_ZeroTimer zt3 = Adafruit_ZeroTimer(3);
 Adafruit_SSD1331 oled = Adafruit_SSD1331(OLED_CS, OLED_DC, OLED_RESET);
+Adafruit_BluefruitLE_SPI ble(BLUEFRUIT_SPI_CS, BLUEFRUIT_SPI_IRQ, BLUEFRUIT_SPI_RST);
 
 byte powerVal(int mv) {
   //float quot = (5100-2700)/(batLength-3); // scale: 5100 -> batLength, 2710 -> 0
@@ -104,7 +113,7 @@ short green2red(int val, int maxi) {
 }
 
 void batteryBar() {
-  byte vccVal = readVcc();
+  vccVal = readVcc();
   oled.fillRect(oled.width()-7, oled.height()  - batLength+2, 6, batLength-3-vccVal, BLACK);
   for (int v=vccVal; v>0; --v) {
     oled.drawLine(
@@ -167,6 +176,14 @@ int16_t absi(int16_t val) {
   else val;
 }
 
+inline byte tob(char c) { return c - '0';}
+
+void getTime() {
+  hours = tob(serialCache[0])*10 + tob(serialCache[1]);
+  minutes = tob(serialCache[3])*10 + tob(serialCache[4]);
+  seconds = tob(serialCache[6])*10 + tob(serialCache[7]);
+}
+
 void setup() {
   pinMode(BUTTON, INPUT_PULLUP);
   pinMode(STEPLED, OUTPUT);
@@ -175,6 +192,16 @@ void setup() {
   Wire.write(0x6B);  // PWR_MGMT_1 register
   Wire.write(0);     // set to zero (wakes up the MPU-6050)
   Wire.endTransmission(true);
+
+  ble.begin(false);
+  ble.echo(false);
+  ble.sendCommandCheckOK("AT+HWModeLED=BLEUART");
+  ble.sendCommandCheckOK("AT+GAPDEVNAME=DoraemonStep");
+  ble.sendCommandCheckOK("ATE=0");
+  ble.sendCommandCheckOK("AT+BAUDRATE=115200");
+  ble.sendCommandCheckOK("ATZ");
+  ble.setMode(BLUEFRUIT_MODE_DATA);
+  ble.verbose(false);
 
   oled.begin();
   oled.fillScreen(GREY);
@@ -240,6 +267,20 @@ void loop() {
   delay(100);
   digitalWrite(STEPLED, LOW);
   
+  if (ble.isConnected()) {
+    while ( ble.available() ) {
+      char inChar = (char) ble.read();
+      if (inChar == '\n' || cpos == 10) {
+        getTime();
+        serialCache[cpos] = '\0';
+        cpos = 0;
+        continue;
+      }
+      serialCache[cpos] = inChar;
+      cpos++;
+    }
+  }
+    
   if (tick == 0  && displayOnSec >= 0) {
     oled.setTextColor(WHITE, GREY);
     oled.setTextSize(1);
@@ -301,7 +342,13 @@ void loop() {
   barrier = treshold*5000l + 9000l;
   if (stoss > barrier) {
     steps++;
-    digitalWrite(STEPLED, HIGH);    
+    digitalWrite(STEPLED, HIGH);
+    if (steps%200 == 0 && ble.isConnected()) {
+      ble.print("Steps: ");
+      ble.println(steps);
+      ble.print(vccVal);
+      ble.println(" mV");    
+    }
   }
     
   if (GyX > 17200) GyX = 17200;
