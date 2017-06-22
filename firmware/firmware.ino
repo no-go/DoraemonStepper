@@ -380,6 +380,7 @@ void loop() {
   if (displayOnSec > SLEEPSEC && displayOnSec >= 0) {
     oled.writeCommand(SSD1331_CMD_DISPLAYOFF);
     displayOnSec = -1;
+    pressTicks = -1;
   }
       
   lastx = deltax;
