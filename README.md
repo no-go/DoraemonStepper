@@ -4,18 +4,25 @@ A feather M0 step counter with SSD1331 oled RGB display and MPU6050 gyroscope wi
 Code is coming from hell and very terrible. The Feel and Flair of the
 user experience is a bit buggy but okay :-D
 
+## New features v0.5
+
+  - Display dims after 15sec
+  - Display sleeps after 45sec
+  - clock is bigger
+  - fix a powerbar bug
+
 ## New features v0.4
 
- - Display sleeps after 15sec
- - Display switchs on if there is an incoming message
- - UART message is shown as a scrolling text like a terminal
- - Send 12:34:56 or x12:34:56 via bluetooth to set the Time/clock
- - small threshold button press fix
+  - Display sleeps after 15sec
+  - Display switchs on if there is an incoming message
+  - UART message is shown as a scrolling text like a terminal
+  - Send 12:34:56 or x12:34:56 via bluetooth to set the Time/clock
+  - small threshold button press fix
 
 ## New features v0.3
 
- - Send 12:34:56 via bluetooth to set the Time/clock
- - lipo runtime unclear, because bluetooth on my faether is now on
+  - Send 12:34:56 via bluetooth to set the Time/clock
+  - lipo runtime unclear, because bluetooth on my faether is now on
 
 ## New features v0.2
 

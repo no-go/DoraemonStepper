@@ -1,8 +1,34 @@
-/*
- * git clone https://github.com/adafruit/Adafruit_ASFcore
- * git clone https://github.com/adafruit/Adafruit_ZeroTimer.git
- */
 #include <Arduino.h>
+
+// -------------------------------------------Config Start
+const int MPU=0x68;  // I2C address of the MPU-6050
+
+#define OLED_DC      5
+#define OLED_CS     12
+#define OLED_RESET   6
+
+#define BUTTON      11
+#define CHIPINT     10  //unused
+#define VBATPIN     A7  // A7 = D9 !!
+#define STEPLED     13
+
+#define VCCMAX 4400
+#define VCCMIN 3550
+
+long treshold = 2; //initial
+
+byte batLength = 40;
+int  DIMSEC = 15;
+int  OFFSEC = 45;
+
+#define EYE1x 47
+#define EYE1y 22
+#define EYE2x 64
+#define EYE2y 22
+// -------------------------------------------Config End
+
+// git clone https://github.com/adafruit/Adafruit_ASFcore
+// git clone https://github.com/adafruit/Adafruit_ZeroTimer.git
 #include <Adafruit_ZeroTimer.h>
 
 #include <Adafruit_GFX.h>
@@ -13,24 +39,14 @@
 #include "BluefruitConfig.h"
 
 #include <SPI.h>
-#define OLED_DC      5
-#define OLED_CS     12
-#define OLED_RESET   6
-
-#define BUTTON      11
-#define CHIPINT     10  //unused
-#define VBATPIN     A7  // A7 = D9 !!
-#define STEPLED     13
-
 #include <Wire.h>
-const int MPU=0x68;  // I2C address of the MPU-6050
+
 int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
-byte vccVal = 3400;
 
 long stoss;
 long firstStoss =-1;
+int vccVal;
 
-long treshold = 2;
 long barrier = 0;
 long steps   = 0;
 
@@ -61,7 +77,7 @@ unsigned short swipp = 0;
 // According to the datasheet: 
 //   340 per degrees Celsius, -512 at 35 degrees.
 // At 0 degrees: -512 - (340 * 35) = -12412
-double dT;
+double dT; // unused
 
 // Color definitions
 #define BLACK           0x0000
@@ -77,30 +93,21 @@ double dT;
 #define AMBER           0b1111101111100111
 #define WHITE           0xFFFF
 
-byte batLength = 50;
-int  SLEEPSEC = 15;
+#define BACKGROUND      0x0000
 
 #define NO_TIME_THERE 42
-#define EYE1x 47
-#define EYE1y 20
-#define EYE2x 64
-#define EYE2y 20
 
 Adafruit_ZeroTimer zt3 = Adafruit_ZeroTimer(3);
 Adafruit_SSD1331 oled = Adafruit_SSD1331(OLED_CS, OLED_DC, OLED_RESET);
 Adafruit_BluefruitLE_SPI ble(BLUEFRUIT_SPI_CS, BLUEFRUIT_SPI_IRQ, BLUEFRUIT_SPI_RST);
 
-byte powerVal(int mv) {
-  if (mv >= 4400) mv = 4400;
-  float quot = (4400.0-3550.0)/(batLength-3.0); // scale: 4400 -> batLength, 3550 -> 0
-  return (mv-3550.0)/quot;  
-}
-
-int readVcc() {
+void readVcc() {
   float mv = analogRead(VBATPIN);
   mv *= 2;
   mv *= 3.3;
-  return powerVal(mv);
+  vccVal = mv;
+  if (vccVal > VCCMAX) vccVal = VCCMAX;
+  if (vccVal < VCCMIN) vccVal = VCCMIN;
 }
 
 short green2red(int val, int maxi) {
@@ -155,11 +162,12 @@ char umlReplace(char inChar) {
 }
 
 void batteryBar() {
-  vccVal = readVcc();
-  oled.fillRect(oled.width()-7, oled.height()  - batLength+2, 6, batLength-3-vccVal, BLACK);
-  for (int v=vccVal; v>0; --v) {
+  readVcc();
+  int val = map(vccVal, VCCMIN, VCCMAX, 0, batLength);
+  oled.fillRect(oled.width()-5, oled.height() - batLength+2, 4, batLength-3-val, GREY);
+  for (int v=val; v>0; --v) {
     oled.drawLine(
-      oled.width()-7, oled.height()-v-1,
+      oled.width()-5, oled.height()-v-1,
       oled.width()-2, oled.height()-v-1,
       green2red(v, batLength)
     );
@@ -180,9 +188,9 @@ inline void eyes() {
 }
 
 inline void batteryFrame() {
-  oled.drawPixel(oled.width()-5, oled.height() - batLength, WHITE);
   oled.drawPixel(oled.width()-4, oled.height() - batLength, WHITE);
-  oled.drawRect(oled.width()-8, oled.height()  - batLength+1, 8, batLength-1, WHITE);  
+  oled.drawPixel(oled.width()-3, oled.height() - batLength, WHITE);
+  oled.drawRect(oled.width()-6, oled.height()  - batLength+1, 6, batLength-1, WHITE);  
 }
 
 inline void kopf() {
@@ -232,7 +240,7 @@ inline void bart() {
 inline void halsband() {
   oled.fillRect(EYE1x-14, 54, 47, 5, RED);
   oled.drawRect(EYE1x-14, 54, 47, 5, BLACK);
-  oled.fillRect(EYE1x-15, 59, 50, 8, GREY);
+  oled.fillRect(EYE1x-15, 59, 50, 8, BACKGROUND);
 }
 
 inline void glocke() {
@@ -241,13 +249,27 @@ inline void glocke() {
   oled.drawLine(EYE1x + (EYE2x-EYE1x)/2, 59, EYE1x +4 + (EYE2x-EYE1x)/2, 60, BLACK);
 }
 
+inline void printClock() {
+  oled.setTextColor(YELLOW, BACKGROUND);
+  oled.setTextSize(2);
+  oled.setCursor(0,0);
+  if(hours<10) oled.print('0');
+  oled.print(hours);
+  oled.print(':');
+  if(minutes<10) oled.print('0');
+  oled.print(minutes);
+  oled.print(':');
+  if(seconds<10) oled.print('0');
+  oled.print(seconds);
+}
+
 void Timer3Callback0(struct tc_module *const module_inst) {
   tick++;
   if (tick>3) {
     seconds++;
     if (displayOnSec >=0) displayOnSec++;
     if (messageOnSec >=0) messageOnSec++;
-    if (messageOnSec > SLEEPSEC) messageOnSec = -1;
+    if (messageOnSec > OFFSEC) messageOnSec = -1;
     tick=0;
   }
   if (seconds > 59) {
@@ -301,7 +323,7 @@ void setup() {
 
   oled.begin();
   
-  oled.fillScreen(GREY);
+  oled.fillScreen(BACKGROUND);
   treBar();
   batteryFrame();
   
@@ -315,7 +337,7 @@ void setup() {
   halsband();
   glocke();
 
-  oled.setTextColor(GREEN, GREY);
+  oled.setTextColor(GREEN, BACKGROUND);
   oled.setTextSize(1);
   
   /********************* Timer #3, 16 bit, two PWM outs, period = 65535 */
@@ -399,18 +421,7 @@ void loop() {
   }
     
   if (tick == 0  && displayOnSec >= 0) {
-    oled.setTextColor(YELLOW, BLUE);
-    oled.setTextSize(1);
-    oled.setCursor(0,0);
-    if(hours<10) oled.print('0');
-    oled.print(hours);
-    oled.print(':');
-    if(minutes<10) oled.print('0');
-    oled.print(minutes);
-    oled.print(':');
-    if(seconds<10) oled.print('0');
-    oled.print(seconds);
-
+    printClock();
     //oled.setCursor(75,0);
     //oled.print(dT);
   }
@@ -433,15 +444,15 @@ void loop() {
     pressTicks = -1;
   }
 
-  if (seconds%4 == 0 && tick==0 && displayOnSec>=0 && messageOnSec < 0) {
+  if (seconds%4 == 0 && tick==0 && displayOnSec>=0 && messageOnSec < 0 && displayOnSec < DIMSEC) {
     batteryBar();
     eyes();
     delay(100);
     nose();
   }
   
-  if (seconds%29 == 0 && tick==0 && messageOnSec < 0) {
-    oled.fillScreen(GREY);
+  if (seconds%29 == 0 && tick==0 && messageOnSec < 0 && displayOnSec < DIMSEC) {
+    oled.fillScreen(BACKGROUND);
     oled.writeCommand(SSD1331_CMD_DISPLAYOFFSET);
     oled.writeCommand(0);
 
@@ -496,12 +507,12 @@ void loop() {
   deltax = map(GyX, -17200, 17200, -6, 6);
   deltay = map(GyY, -17200, 17200, 6, -6);
   
-  if (displayOnSec >= 0 && messageOnSec < 0) {
+  if (displayOnSec >= 0 && messageOnSec < 0 && displayOnSec < DIMSEC) {
     mouth();
     
     oled.setTextSize(1);
     oled.setCursor(0,55);
-    oled.setTextColor(AMBER, GREY);
+    oled.setTextColor(AMBER, BACKGROUND);
     oled.print(steps);
     
     oled.fillCircle(EYE1x+lastx, EYE1y+lasty, 2, WHITE);
@@ -514,7 +525,11 @@ void loop() {
     oled.drawPixel(EYE2x+deltax-1, EYE2y+deltay-1, WHITE);  
   }
 
-  if (displayOnSec > SLEEPSEC) {
+  if (displayOnSec == DIMSEC) {
+    oled.writeCommand(SSD1331_CMD_DISPLAYDIM);
+  }
+  
+  if (displayOnSec > OFFSEC) {
     oled.writeCommand(SSD1331_CMD_DISPLAYOFF);
     displayOnSec = -1;
     messageOnSec = -1;
